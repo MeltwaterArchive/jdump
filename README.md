@@ -1,4 +1,4 @@
-JVM DUMP
+jdump
 ========
 *A tool to take a debug snapshot of a running JVM with one command.*
 
