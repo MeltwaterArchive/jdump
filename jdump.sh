@@ -65,7 +65,7 @@ function generate() {
 
     info "Generating $DESC..."
     $PROG $ARGS $PID >$OUT 2>/dev/null
-    
+
     if [ "$?" -ne 0 ]
     then
         warn "Unable to generate $DESC. Skipping..."
