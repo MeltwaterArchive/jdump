@@ -85,7 +85,7 @@ JMAP="$(which jmap 2>/dev/null)"
 JPS="$(which jps 2>/dev/null)"
 JSTACK="$(which jstack 2>/dev/null)"
 
-[[ -n "$APP_NAME" ]] && {
+[[ -z "$APP_NAME" ]] && {
     print_usage
     exit 1
 }
