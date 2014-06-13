@@ -144,7 +144,7 @@ generate_no_redirect $JMAP "-dump:format=b,file=$TMP_PATH/full.hprof"\
     "$TMP_PATH/full.hprof"\
     "heap dump (full)"
 
-if [[ -e "$LOG_DIR" -a -d "$LOG_DIR" ]]; then
+if [[ -e "$LOG_DIR" && -d "$LOG_DIR" ]]; then
     info "Fetching logs from $LOG_DIR..."
     mkdir "$TMP_PATH/logs"
     cp $LOG_DIR/* "$TMP_PATH/logs"
@@ -152,13 +152,13 @@ fi
 
 # optionally archive and compress
 case "$DUMP_FILE" in
-    *.tar*)
+    *.tar*|*.tgz)
         info "Archiving..."
-        tar -C "$TMP_DIR" acf "$DUMP_FILE" "$APP_NAME" &>/dev/null
+        tar -C "$TMP_DIR" -acf "$DUMP_FILE" "$APP_NAME" #&>/dev/null
         ;;
     *)
         info "Copying..."
-        cp "$TMP_PATH" "$DUMP_FILE"
+        cp -r "$TMP_PATH" "$DUMP_FILE"
         ;;
 esac
 
