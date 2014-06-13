@@ -84,7 +84,6 @@ TMP_PATH="$TMP_DIR/$APP_NAME"
 JMAP="$(which jmap 2>/dev/null)"
 JPS="$(which jps 2>/dev/null)"
 JSTACK="$(which jstack 2>/dev/null)"
-PID=$($JPS 2>/dev/null | grep -i "$APP_NAME" | awk '{print $1}')
 
 [[ -n "$APP_NAME" ]] && {
     print_usage
@@ -100,6 +99,7 @@ PID=$($JPS 2>/dev/null | grep -i "$APP_NAME" | awk '{print $1}')
 [[ -z "$JSTACK" ]] &&
     error "jstack not found. Ensure the JDK is installed and that the 'jstack' program is on the PATH."
 
+PID=$($JPS 2>/dev/null | grep -i "$APP_NAME" | awk '{print $1}')
 if [[ -z "$PID" ]]; then
     # try again, as root
     if [[ "$USER" != "root" ]]
