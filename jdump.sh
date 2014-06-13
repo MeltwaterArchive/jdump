@@ -28,34 +28,22 @@ Options:
 "
 }
 
-APP_NAME="$1"
-
-# check if things should be done quietly
-QUIET=false
-NO_WARN=false
-if [ "$1" == "-q" ]
-then
-    QUIET=true
-    shift
-elif [ "$1" == "-qq" ]
-then
-    QUIET=true
-    NO_WARN=true
-fi
+# set the appropriate log level
+LEVEL=0
+case "$1" in
+   -q) LEVEL=1; shift;;
+  -qq) LEVEL=2; shift;;
+esac
 
 function info() {
-    if [ $QUIET == false ]
-    then
-        echo -e $*
-    fi
+    [[ $LEVEL -lt 1 ]] && echo -e "$@"
 }
 
 function warn() {
-    if [ $NO_WARN == false ]
-    then
-        echo -e $* 1>&2
-    fi
+    [[ $LEVEL -lt 2 ]] && echo -e "$@" 1>&2
 }
+
+APP_NAME="$1"
 
 function generate() {
     PROG="$1"
