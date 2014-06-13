@@ -5,12 +5,8 @@
 #
 # Usage: jdump [options] <app-name> [<output filename>] [<log-directory>]
 
-function error()
-{
-    if [ -n "$1" ]
-    then
-        echo -e "Error: $*" 1>&2 
-    fi
+function error() {
+    [[ -n "$@" ]] && echo -e "Error: $@" 1>&2
     exit 1
 }
 
@@ -54,8 +50,7 @@ function generate() {
     info "Generating $DESC..."
     $PROG $ARGS $PID >$OUT 2>/dev/null
 
-    if [ "$?" -ne 0 ]
-    then
+    if [[ "$?" -ne 0 ]]; then
         warn "Unable to generate $DESC. Skipping..."
         rm -f "$OUT" 2>/dev/null
     fi
@@ -70,8 +65,7 @@ function generate_no_redirect() {
     info "Generating $DESC..."
     $PROG $ARGS $PID &>/dev/null
 
-    if [ "$?" -ne 0 ]
-    then
+    if [[ "$?" -ne 0 ]]; then
         warn "Unable to generate $DESC. Skipping..."
         rm -f "$OUT" 2>/dev/null
     fi
@@ -79,8 +73,7 @@ function generate_no_redirect() {
 
 DEFAULT_DUMP_FILE="$APP_NAME-dump.tgz"
 
-if [ ! -w "./" ]
-then
+if [[ ! -w "./" ]]; then
     DEFAULT_DUMP_FILE="/tmp/$DEFAULT_DUMP_FILE"
 fi
 
@@ -93,58 +86,42 @@ JPS="$(which jps 2>/dev/null)"
 JSTACK="$(which jstack 2>/dev/null)"
 PID=$($JPS 2>/dev/null | grep -i "$APP_NAME" | awk '{print $1}')
 
-if [ -z "$APP_NAME" ]
-then
+[[ -n "$APP_NAME" ]] && {
     print_usage
     exit 1
-fi
+}
 
-if [ -z "$JMAP" ]
-then
-    error "jmap not found.
-Ensure the JDK is installed and that the 'jmap' program is on the PATH."
-fi
+[[ -z "$JMAP" ]] &&
+    error "jmap not found. Ensure the JDK is installed and that the 'jmap' program is on the PATH."
 
-if [ -z "$JPS" ]
-then
-    error "jps not found.
-Ensure the JDK is installed and that the 'jps' program is on the PATH."
-fi
+[[ -z "$JPS" ]] &&
+    error "jps not found. Ensure the JDK is installed and that the 'jps' program is on the PATH."
 
-if [ -z "$JSTACK" ]
-then
-    error "jstack not found.
-Ensure the JDK is installed and that the 'jstack' program is on the PATH."
-fi
+[[ -z "$JSTACK" ]] &&
+    error "jstack not found. Ensure the JDK is installed and that the 'jstack' program is on the PATH."
 
-if [ -z "$PID" ]
-then
-    # try agin, as root
-    if [ "$USER" != "root" ]
+if [[ -z "$PID" ]]; then
+    # try again, as root
+    if [[ "$USER" != "root" ]]
     then
         warn "Unable to determine PID of $APP_NAME. Trying again as root..."
         PID=$(sudo $JPS 2>/dev/null | grep -i "$APP_NAME" | awk '{print $1}')
 
-        if [ -z "$PID" ]
-        then
-            error "Unable to determine PID of $APP_NAME.
-Ensure it is running."
-        fi
+        [[ -z "$PID" ]] &&
+            error "Unable to determine PID of $APP_NAME. Ensure it is running."
     fi
 fi
 
 EUSER=$(ps -p $PID --no-headers -o euser)
 
 # if the user is wrong, run the dump as the correct user
-if [ "$USER" != "$EUSER" ]
-then
+if [[ "$USER" != "$EUSER" ]]; then
     warn "$APP_NAME is running as the $EUSER user; switching user..."
     sudo -u "$EUSER" $0 $*
     exit $?
 fi
 
-if [ ! -w $(dirname $DUMP_FILE) ]
-then
+if [[ ! -w $(dirname $DUMP_FILE) ]]; then
     error "Unable to dump to $DUMP_FILE.
 The target directory does not exist or is not writable by $USER".
 fi
@@ -167,8 +144,7 @@ generate_no_redirect $JMAP "-dump:format=b,file=$TMP_PATH/full.hprof"\
     "$TMP_PATH/full.hprof"\
     "heap dump (full)"
 
-if [ -e "$LOG_DIR" -a -d "$LOG_DIR" ]
-then
+if [[ -e "$LOG_DIR" -a -d "$LOG_DIR" ]]; then
     info "Fetching logs from $LOG_DIR..."
     mkdir "$TMP_PATH/logs"
     cp $LOG_DIR/* "$TMP_PATH/logs"
