@@ -74,13 +74,11 @@ function generate_no_redirect() {
 DEFAULT_DUMP_FILE="$APP_NAME-dump.tgz"
 
 if [[ ! -w "./" ]]; then
-    DEFAULT_DUMP_FILE="/tmp/$DEFAULT_DUMP_FILE"
+    DEFAULT_DUMP_FILE="${TMPDIR:-/tmp}/$DEFAULT_DUMP_FILE"
 fi
 
 DUMP_FILE="${2:-$DEFAULT_DUMP_FILE}"
 LOG_DIR="${3:-/var/log/$APP_NAME}"
-TMP_DIR="/tmp/$APP_NAME-dump.$(date -u +%s)"
-TMP_PATH="$TMP_DIR/$APP_NAME"
 JMAP="$(which jmap 2>/dev/null)"
 JPS="$(which jps 2>/dev/null)"
 JSTACK="$(which jstack 2>/dev/null)"
@@ -126,7 +124,7 @@ if [[ ! -w $(dirname $DUMP_FILE) ]]; then
 The target directory does not exist or is not writable by $USER".
 fi
 
-mkdir -p "$TMP_PATH" 2>/dev/null
+TMP_PATH="$(mktemp -d $APP_NAME-dump.$(date -u +%s).XXXXX)"
 
 generate $JSTACK "-l" "$TMP_PATH/stack-trace.txt" "stack trace"
 
@@ -146,15 +144,14 @@ generate_no_redirect $JMAP "-dump:format=b,file=$TMP_PATH/full.hprof"\
 
 if [[ -e "$LOG_DIR" && -d "$LOG_DIR" ]]; then
     info "Fetching logs from $LOG_DIR..."
-    mkdir "$TMP_PATH/logs"
-    cp $LOG_DIR/* "$TMP_PATH/logs"
+    cp -r "$LOG_DIR" "$TMP_PATH/logs"
 fi
 
 # optionally archive and compress
 case "$DUMP_FILE" in
     *.tar*|*.tgz)
         info "Archiving..."
-        tar -C "$TMP_DIR" -acf "$DUMP_FILE" "$APP_NAME" #&>/dev/null
+        tar -C "$(dirname $TMP_PATH)" -acf "$DUMP_FILE" "$(basename $TMP_PATH)"
         ;;
     *)
         info "Copying..."
@@ -163,7 +160,7 @@ case "$DUMP_FILE" in
 esac
 
 # remove temporary directory
-rm -rf "$TMP_DIR"
+rm -rf "$TMP_PATH"
 
 info "Dump to $DUMP_FILE completed."
 
