@@ -151,25 +151,16 @@ if [[ -e "$LOG_DIR" -a -d "$LOG_DIR" ]]; then
 fi
 
 # optionally archive and compress
-if [[ $DUMP_FILE == *.tar ]]
-then
-    info "Archiving..."
-    tar -C $TMP_DIR -cf "$DUMP_FILE" $APP_NAME &>/dev/null
-elif [[ $DUMP_FILE == *.tar.gz || $DUMP_FILE == *.tgz ]]
-then
-    info "Compressing..."
-    tar -C $TMP_DIR -zcf "$DUMP_FILE" $APP_NAME &>/dev/null
-elif [[ $DUMP_FILE == *.tar.bz2 ]]
-then
-    info "Compressing..."
-    tar -C $TMP_DIR -jcf "$DUMP_FILE" $APP_NAME &>/dev/null
-elif [[ $DUMP_FILE == *.tar.lz ]]
-then
-    info "Compressing..."
-    tar -C $TMP_DIR --lzma -cf "$DUMP_FILE" $APP_NAME &>/dev/null
-else
-    cp "$TMP_PATH" "$DUMP_FILE"
-fi
+case "$DUMP_FILE" in
+    *.tar*)
+        info "Archiving..."
+        tar -C "$TMP_DIR" acf "$DUMP_FILE" "$APP_NAME" &>/dev/null
+        ;;
+    *)
+        info "Copying..."
+        cp "$TMP_PATH" "$DUMP_FILE"
+        ;;
+esac
 
 # remove temporary directory
 rm -rf "$TMP_DIR"
