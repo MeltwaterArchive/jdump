@@ -212,5 +212,3 @@ rm -rf "$TMP_DIR"
 
 info "Dump to $DUMP_FILE completed."
 
-exit 0
-
