@@ -5,12 +5,8 @@
 #
 # Usage: jdump [options] <app-name> [<output filename>] [<log-directory>]
 
-function error()
-{
-    if [ -n "$1" ]
-    then
-        echo -e "Error: $*" 1>&2 
-    fi
+function error() {
+    [[ -n "$@" ]] && echo -e "Error: $@" 1>&2
     exit 1
 }
 
@@ -28,34 +24,22 @@ Options:
 "
 }
 
-APP_NAME="$1"
-
-# check if things should be done quietly
-QUIET=false
-NO_WARN=false
-if [ "$1" == "-q" ]
-then
-    QUIET=true
-    shift
-elif [ "$1" == "-qq" ]
-then
-    QUIET=true
-    NO_WARN=true
-fi
+# set the appropriate log level
+LEVEL=0
+case "$1" in
+   -q) LEVEL=1; shift;;
+  -qq) LEVEL=2; shift;;
+esac
 
 function info() {
-    if [ $QUIET == false ]
-    then
-        echo -e $*
-    fi
+    [[ $LEVEL -lt 1 ]] && echo -e "$@"
 }
 
 function warn() {
-    if [ $NO_WARN == false ]
-    then
-        echo -e $* 1>&2
-    fi
+    [[ $LEVEL -lt 2 ]] && echo -e "$@" 1>&2
 }
+
+APP_NAME="$1"
 
 function generate() {
     PROG="$1"
@@ -65,9 +49,8 @@ function generate() {
 
     info "Generating $DESC..."
     $PROG $ARGS $PID >$OUT 2>/dev/null
-    
-    if [ "$?" -ne 0 ]
-    then
+
+    if [[ "$?" -ne 0 ]]; then
         warn "Unable to generate $DESC. Skipping..."
         rm -f "$OUT" 2>/dev/null
     fi
@@ -82,8 +65,7 @@ function generate_no_redirect() {
     info "Generating $DESC..."
     $PROG $ARGS $PID &>/dev/null
 
-    if [ "$?" -ne 0 ]
-    then
+    if [[ "$?" -ne 0 ]]; then
         warn "Unable to generate $DESC. Skipping..."
         rm -f "$OUT" 2>/dev/null
     fi
@@ -91,77 +73,58 @@ function generate_no_redirect() {
 
 DEFAULT_DUMP_FILE="$APP_NAME-dump.tgz"
 
-if [ ! -w "./" ]
-then
-    DEFAULT_DUMP_FILE="/tmp/$DEFAULT_DUMP_FILE"
+if [[ ! -w "./" ]]; then
+    DEFAULT_DUMP_FILE="${TMPDIR:-/tmp}/$DEFAULT_DUMP_FILE"
 fi
 
 DUMP_FILE="${2:-$DEFAULT_DUMP_FILE}"
 LOG_DIR="${3:-/var/log/$APP_NAME}"
-TMP_DIR="/tmp/$APP_NAME-dump.$(date -u +%s)"
-TMP_PATH="$TMP_DIR/$APP_NAME"
 JMAP="$(which jmap 2>/dev/null)"
 JPS="$(which jps 2>/dev/null)"
 JSTACK="$(which jstack 2>/dev/null)"
-PID=$($JPS 2>/dev/null | grep -i "$APP_NAME" | awk '{print $1}')
 
-if [ -z "$APP_NAME" ]
-then
+[[ -z "$APP_NAME" ]] && {
     print_usage
     exit 1
-fi
+}
 
-if [ -z "$JMAP" ]
-then
-    error "jmap not found.
-Ensure the JDK is installed and that the 'jmap' program is on the PATH."
-fi
+[[ -z "$JMAP" ]] &&
+    error "jmap not found. Ensure the JDK is installed and that the 'jmap' program is on the PATH."
 
-if [ -z "$JPS" ]
-then
-    error "jps not found.
-Ensure the JDK is installed and that the 'jps' program is on the PATH."
-fi
+[[ -z "$JPS" ]] &&
+    error "jps not found. Ensure the JDK is installed and that the 'jps' program is on the PATH."
 
-if [ -z "$JSTACK" ]
-then
-    error "jstack not found.
-Ensure the JDK is installed and that the 'jstack' program is on the PATH."
-fi
+[[ -z "$JSTACK" ]] &&
+    error "jstack not found. Ensure the JDK is installed and that the 'jstack' program is on the PATH."
 
-if [ -z "$PID" ]
-then
-    # try agin, as root
-    if [ "$USER" != "root" ]
+PID=$($JPS 2>/dev/null | grep -i "$APP_NAME" | awk '{print $1}')
+if [[ -z "$PID" ]]; then
+    # try again, as root
+    if [[ "$USER" != "root" ]]
     then
         warn "Unable to determine PID of $APP_NAME. Trying again as root..."
         PID=$(sudo $JPS 2>/dev/null | grep -i "$APP_NAME" | awk '{print $1}')
 
-        if [ -z "$PID" ]
-        then
-            error "Unable to determine PID of $APP_NAME.
-Ensure it is running."
-        fi
+        [[ -z "$PID" ]] &&
+            error "Unable to determine PID of $APP_NAME. Ensure it is running."
     fi
 fi
 
 EUSER=$(ps -p $PID --no-headers -o euser)
 
 # if the user is wrong, run the dump as the correct user
-if [ "$USER" != "$EUSER" ]
-then
+if [[ "$USER" != "$EUSER" ]]; then
     warn "$APP_NAME is running as the $EUSER user; switching user..."
     sudo -u "$EUSER" $0 $*
     exit $?
 fi
 
-if [ ! -w $(dirname $DUMP_FILE) ]
-then
+if [[ ! -w $(dirname $DUMP_FILE) ]]; then
     error "Unable to dump to $DUMP_FILE.
 The target directory does not exist or is not writable by $USER".
 fi
 
-mkdir -p "$TMP_PATH" 2>/dev/null
+TMP_PATH="$(mktemp -d $APP_NAME-dump.$(date -u +%s).XXXXX)"
 
 generate $JSTACK "-l" "$TMP_PATH/stack-trace.txt" "stack trace"
 
@@ -179,38 +142,25 @@ generate_no_redirect $JMAP "-dump:format=b,file=$TMP_PATH/full.hprof"\
     "$TMP_PATH/full.hprof"\
     "heap dump (full)"
 
-if [ -e "$LOG_DIR" -a -d "$LOG_DIR" ]
-then
+if [[ -e "$LOG_DIR" && -d "$LOG_DIR" ]]; then
     info "Fetching logs from $LOG_DIR..."
-    mkdir "$TMP_PATH/logs"
-    cp $LOG_DIR/* "$TMP_PATH/logs"
+    cp -r "$LOG_DIR" "$TMP_PATH/logs"
 fi
 
 # optionally archive and compress
-if [[ $DUMP_FILE == *.tar ]]
-then
-    info "Archiving..."
-    tar -C $TMP_DIR -cf "$DUMP_FILE" $APP_NAME &>/dev/null
-elif [[ $DUMP_FILE == *.tar.gz || $DUMP_FILE == *.tgz ]]
-then
-    info "Compressing..."
-    tar -C $TMP_DIR -zcf "$DUMP_FILE" $APP_NAME &>/dev/null
-elif [[ $DUMP_FILE == *.tar.bz2 ]]
-then
-    info "Compressing..."
-    tar -C $TMP_DIR -jcf "$DUMP_FILE" $APP_NAME &>/dev/null
-elif [[ $DUMP_FILE == *.tar.lz ]]
-then
-    info "Compressing..."
-    tar -C $TMP_DIR --lzma -cf "$DUMP_FILE" $APP_NAME &>/dev/null
-else
-    cp "$TMP_PATH" "$DUMP_FILE"
-fi
+case "$DUMP_FILE" in
+    *.tar*|*.tgz)
+        info "Archiving..."
+        tar -C "$(dirname $TMP_PATH)" -acf "$DUMP_FILE" "$(basename $TMP_PATH)"
+        ;;
+    *)
+        info "Copying..."
+        cp -r "$TMP_PATH" "$DUMP_FILE"
+        ;;
+esac
 
 # remove temporary directory
-rm -rf "$TMP_DIR"
+rm -rf "$TMP_PATH"
 
 info "Dump to $DUMP_FILE completed."
-
-exit 0
 
