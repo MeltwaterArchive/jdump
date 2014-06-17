@@ -43,12 +43,13 @@ APP_NAME="$1"
 
 function generate() {
     PROG="$1"
-    ARGS="$2"
+    DESC="$2"
     OUT="$3"
-    DESC="$4"
+
+    shift 3;
 
     info "Generating $DESC..."
-    $PROG $ARGS $PID >$OUT 2>/dev/null
+    $PROG "$@" >"$OUT" 2>/dev/null
 
     if [[ "$?" -ne 0 ]]; then
         warn "Unable to generate $DESC. Skipping..."
@@ -58,12 +59,13 @@ function generate() {
 
 function generate_no_redirect() {
     PROG="$1"
-    ARGS="$2"
+    DESC="$2"
     OUT="$3"
-    DESC="$4"
+
+    shift 3;
 
     info "Generating $DESC..."
-    $PROG $ARGS $PID &>/dev/null
+    $PROG "$@" &>/dev/null
 
     if [[ "$?" -ne 0 ]]; then
         warn "Unable to generate $DESC. Skipping..."
@@ -71,10 +73,15 @@ function generate_no_redirect() {
     fi
 }
 
+function not_found() {
+    error "$1 not found. Ensure it is installed and that '$1' is on the PATH."
+}
+
+TMPDIR="${TMPDIR:-/tmp}"
 DEFAULT_DUMP_FILE="$APP_NAME-dump.tgz"
 
 if [[ ! -w "./" ]]; then
-    DEFAULT_DUMP_FILE="${TMPDIR:-/tmp}/$DEFAULT_DUMP_FILE"
+    DEFAULT_DUMP_FILE="$TMPDIR/$DEFAULT_DUMP_FILE"
 fi
 
 DUMP_FILE="${2:-$DEFAULT_DUMP_FILE}"
@@ -83,19 +90,13 @@ JMAP="$(which jmap 2>/dev/null)"
 JPS="$(which jps 2>/dev/null)"
 JSTACK="$(which jstack 2>/dev/null)"
 
-[[ -z "$APP_NAME" ]] && {
-    print_usage
-    exit 1
-}
+[[ -z "$APP_NAME" ]] && print_usage && exit 1
 
-[[ -z "$JMAP" ]] &&
-    error "jmap not found. Ensure the JDK is installed and that the 'jmap' program is on the PATH."
+[[ -z "$JMAP" ]] && not_found "jmap"
 
-[[ -z "$JPS" ]] &&
-    error "jps not found. Ensure the JDK is installed and that the 'jps' program is on the PATH."
+[[ -z "$JPS" ]] && not_found "jps"
 
-[[ -z "$JSTACK" ]] &&
-    error "jstack not found. Ensure the JDK is installed and that the 'jstack' program is on the PATH."
+[[ -z "$JSTACK" ]] && not_found "jstack"
 
 PID=$($JPS 2>/dev/null | grep -i "$APP_NAME" | awk '{print $1}')
 if [[ -z "$PID" ]]; then
@@ -124,27 +125,25 @@ if [[ ! -w $(dirname $DUMP_FILE) ]]; then
 The target directory does not exist or is not writable by $USER".
 fi
 
-TMP_PATH="$(mktemp -d $APP_NAME-dump.$(date -u +%s).XXXXX)"
+TMP_PATH="$(mktemp -d $TMPDIR/$APP_NAME-dump.$(date -u +%s).XXXXX)"
 
-generate $JSTACK "-l" "$TMP_PATH/stack-trace.txt" "stack trace"
+generate $JSTACK "stack trace" "$TMP_PATH/stack-trace.txt" "-l" "$PID"
 
-generate $JMAP "-heap" "$TMP_PATH/heap-summary.txt" "heap summary"
+generate $JMAP "heap summary" "$TMP_PATH/heap-summary.txt" "-heap" "$PID"
 
-generate $JMAP "-histo:live" "$TMP_PATH/live.histo" "heap histogram (live)"
+generate $JMAP "heap histogram (live)" "$TMP_PATH/live.histo" "-histo:live" "$PID"
 
-generate $JMAP "-histo" "$TMP_PATH/full.histo" "heap histogram (full)"
+generate $JMAP "heap histogram (full)" "$TMP_PATH/full.histo" "-histo" "$PID"
 
-generate_no_redirect $JMAP "-dump:live,format=b,file=$TMP_PATH/live.hprof"\
-    "$TMP_PATH/live.hprof"\
-    "heap dump (live)"
+generate_no_redirect $JMAP "heap dump (live)" "$TMP_PATH/live.hprof" \
+    "-dump:live,format=b,file=$TMP_PATH/live.hprof" "$PID"
 
-generate_no_redirect $JMAP "-dump:format=b,file=$TMP_PATH/full.hprof"\
-    "$TMP_PATH/full.hprof"\
-    "heap dump (full)"
+generate_no_redirect $JMAP "heap dump (full)" "$TMP_PATH/full.hprof" \
+    "-dump:format=b,file=$TMP_PATH/full.hprof" "$PID"
 
-if [[ -e "$LOG_DIR" && -d "$LOG_DIR" ]]; then
+if [[ -e "$LOG_DIR" && -d "$LOG_DIR" && -r "$LOG_DIR" ]]; then
     info "Fetching logs from $LOG_DIR..."
-    cp -r "$LOG_DIR" "$TMP_PATH/logs"
+    cp -r "$LOG_DIR" "$TMP_PATH/logs" 2>/dev/null
 fi
 
 # optionally archive and compress
@@ -155,12 +154,12 @@ case "$DUMP_FILE" in
         ;;
     *)
         info "Copying..."
-        cp -r "$TMP_PATH" "$DUMP_FILE"
+        cp -r "$TMP_PATH" "$DUMP_FILE" 2>/dev/null
         ;;
 esac
 
 # remove temporary directory
-rm -rf "$TMP_PATH"
+rm -rf "$TMP_PATH" 2>/dev/null
 
 info "Dump to $DUMP_FILE completed."
 
