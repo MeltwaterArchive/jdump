@@ -98,7 +98,11 @@ JSTACK="$(which jstack 2>/dev/null)"
 
 [[ -z "$JSTACK" ]] && not_found "jstack"
 
-PID=$($JPS 2>/dev/null | grep -i "$APP_NAME" | awk '{print $1}')
+PID=$($JPS 2>/dev/null | grep -i "$APP_NAME" 2>/dev/null | head -n1 | awk '{print $1}')
+if (( $? > 1 )); then
+    error "Failed to get PID for: $APP_NAME"
+fi
+
 if [[ -z "$PID" ]]; then
     # try again, as root
     if [[ "$USER" != "root" ]]
