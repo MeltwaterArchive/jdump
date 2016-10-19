@@ -12,24 +12,33 @@ function error() {
 
 function print_usage()
 {
-    echo -e "Usage: jdump <app name> [<output filename>] [<log directory>]
+    echo -e "Usage: jdump [options] <app name> [<output filename>] [<log dir>]
 
-\tapp name\tName of the Java application to collect a debug dump from.
+\tapp name       \tName of the Java application to collect a debug dump from.
 \toutput filename\tFilename for the target debug archive.
-\tlog directory\tDirectory containing the applications' logs to include.
+\tlog dir        \tDirectory containing the applications' logs to include.
 
 Options:
+\t-f\tGenerate full heap dump. This will pause the JVM process for some time.
+\t  \tOnly use this option on dead services.
 \t-q\tSuppress information messages, silently create the debug archive.
-\t-qq\tSame as -q, but also suppresses warnings.
+\t-Q\tSame as -q, but also suppresses warnings.
 "
 }
 
-# set the appropriate log level
+OPTS=()
 LEVEL=0
-case "$1" in
-   -q) LEVEL=1; shift;;
-  -qq) LEVEL=2; shift;;
-esac
+FULL=false
+
+while getopts ":fqQ" opt
+do
+    case "$opt" in
+        f) FULL=true; OPTS+=('-f'); shift;;
+        q) LEVEL=1; OPTS+=('-q'); shift;;
+        Q) LEVEL=2; OPTS+=('-Q'); shift;;
+        \?) error "Invalid argument: -$OPTARG";;
+    esac
+done
 
 function info() {
     [[ $LEVEL -lt 1 ]] && echo -e "$@"
@@ -120,7 +129,7 @@ EUSER=$(ps -p $PID --no-headers -o euser)
 # if the user is wrong, run the dump as the correct user
 if [[ "$USER" != "$EUSER" ]]; then
     warn "$APP_NAME is running as the $EUSER user; switching user..."
-    sudo -u "$EUSER" $0 $*
+    sudo -u "$EUSER" $0 $OPTS $*
     exit $?
 fi
 
