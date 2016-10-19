@@ -26,6 +26,7 @@ Options:
 "
 }
 
+SUDO=""
 OPTS=()
 LEVEL=0
 FULL=false
@@ -107,17 +108,31 @@ JSTACK="$(which jstack 2>/dev/null)"
 
 [[ -z "$JSTACK" ]] && not_found "jstack"
 
-PID=$($JPS 2>/dev/null | grep -i "$APP_NAME" 2>/dev/null | head -n1 | awk '{print $1}')
-if (( $? > 1 )); then
-    error "Failed to get PID for: $APP_NAME"
-fi
+function find_pid() {
+    PIDS=$($SUDO $JPS 2>/dev/null | grep -i "$APP_NAME" 2>/dev/null | awk '{print $1}')
+
+    case ${#PIDS[@]} in
+        0) error "Failed to get PID for: $APP_NAME";;
+        1) PID="$PIDS";;
+        *)
+            PS3="Choose PID to debug:"
+            select CHOICE in $($SUDO $JPS -m 2>/dev/null | grep -i "$APP_NAME" 2>/dev/null); do
+                PID=$(echo "$CHOICE" | awk '{print $1}')
+                break
+            done
+            ;;
+    esac
+}
+
+find_pid
 
 if [[ -z "$PID" ]]; then
     # try again, as root
     if [[ "$USER" != "root" ]]
     then
         warn "Unable to determine PID of $APP_NAME. Trying again as root..."
-        PID=$(sudo $JPS 2>/dev/null | grep -i "$APP_NAME" | awk '{print $1}')
+        SUDO="sudo"
+        find_pid
 
         [[ -z "$PID" ]] &&
             error "Unable to determine PID of $APP_NAME. Ensure it is running."
