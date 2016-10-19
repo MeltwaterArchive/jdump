@@ -144,19 +144,18 @@ generate $JSTACK "stack trace" "$TMP_PATH/stack-trace.txt" "-l" "$PID"
 
 generate $JMAP "heap summary" "$TMP_PATH/heap-summary.txt" "-heap" "$PID"
 
-generate $JMAP "heap histogram (live)" "$TMP_PATH/live.histo" "-histo:live" "$PID"
+generate $JMAP "heap histogram" "$TMP_PATH/heap.histo" "-histo:live" "$PID"
 
-generate $JMAP "heap histogram (full)" "$TMP_PATH/full.histo" "-histo" "$PID"
+if [[ "$FULL" == true ]]; then
+    generate_no_redirect $JMAP "heap dump" "$TMP_PATH/live.hprof" \
+        "-dump:live,format=b,file=$TMP_PATH/heap.hprof" "$PID"
+fi
 
-generate_no_redirect $JMAP "heap dump (live)" "$TMP_PATH/live.hprof" \
-    "-dump:live,format=b,file=$TMP_PATH/live.hprof" "$PID"
-
-generate_no_redirect $JMAP "heap dump (full)" "$TMP_PATH/full.hprof" \
-    "-dump:format=b,file=$TMP_PATH/full.hprof" "$PID"
-
+info "Fetching logs from $LOG_DIR..."
 if [[ -e "$LOG_DIR" && -d "$LOG_DIR" && -r "$LOG_DIR" ]]; then
-    info "Fetching logs from $LOG_DIR..."
     cp -r "$LOG_DIR" "$TMP_PATH/logs" 2>/dev/null
+else
+    warn "Unable to find logs in $LOG_DIR. Skipping..."
 fi
 
 # optionally archive and compress
