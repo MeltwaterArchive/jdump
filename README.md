@@ -41,3 +41,13 @@ Compressing...
 Dump to /tmp/heimdall-dump.tgz completed.
 ```
 
+Packaging
+---------
+
+To package using [fpm](https://github.com/jordansissel/fpm), use the convenient
+script: `package.sh`:
+
+```
+$ . package.sh rpm
+```
+
